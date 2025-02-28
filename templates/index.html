@@ -2,12 +2,104 @@
 <html>
 <head>
     <title>Movie Plot Similarity</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+        
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+            padding: 40px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+            resize: vertical;
+            font-family: inherit;
+            margin-bottom: 25px;
+            transition: border-color 0.3s ease;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        
+        input[type="submit"] {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+        
+        input[type="submit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+        
+        .error {
+            color: #e74c3c;
+            margin: 15px 0;
+        }
+    </style>
 </head>
 <body>
-    <h1>Movie Plot Similarity Detection</h1>
-    <form action="/similarity" method="post">
-        <textarea name="plot" rows="10" cols="80" placeholder="Enter the movie plot here..."></textarea><br>
-        <input type="submit" value="Find Similar Movie">
-    </form>
+    <div class="container">
+        <h1>Movie Plot Similarity</h1>
+        <p class="subtitle">Enter a movie plot and find the most similar existing movie</p>
+        
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        
+        <form action="/similarity" method="post">
+            <textarea name="plot" rows="8" placeholder="Enter the movie plot here..."></textarea>
+            <input type="submit" value="Find Similar Movie">
+        </form>
+    </div>
 </body>
 </html>
