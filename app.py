@@ -72,7 +72,7 @@ def find_most_similar_movie(input_plot, df, embeddings, model):
     return best_match_movie, best_match_score, max_idx
 
 # DeepSeek explanation function via OpenRouter
-API_KEY = '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'  # Replace with your OpenRouter API key
+API_KEY = os.environ.get('OPENROUTER_API_KEY')
 API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 def generate_explanation(plot1, plot2, similarity_score):
