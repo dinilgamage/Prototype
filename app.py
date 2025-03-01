@@ -14,7 +14,7 @@ import spacy
 # -------------------------
 app = Flask(__name__)
 
-# Define file paths for saved embeddings and DataFrame (adjust paths as needed)
+# Define file paths for saved embeddings and DataFrame
 embeddings_path = "Embeddings3/embeddings.npy"
 df_cleaned_path = "Embeddings3/df_cleaned.pkl"
 
@@ -24,25 +24,19 @@ sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
 # Load spaCy's English model for named entity recognition
 nlp = spacy.load('en_core_web_sm')
 
-# Named entity normalization: replace person names with a placeholder "NAME"
+# Named entity normalization
 def normalize_names(text):
     doc = nlp(text)
     normalized_tokens = []
     for token in doc:
-        # Replace PERSON entities with "NAME"
-        # if token.ent_type_ == "PERSON":
-        #     normalized_tokens.append("NAME")
-        # else:
-        #     normalized_tokens.append(token.text)
         if token.ent_type_ in ["PERSON", "GPE", "LOC"]:
             normalized_tokens.append("NAME")
         else:
             normalized_tokens.append(token.text)
     return " ".join(normalized_tokens)
 
-# Preprocessing function updated to include name normalization
+# Preprocessing function
 def preprocess_text(text):
-    # First, normalize person names
     text = normalize_names(text)
     text = text.lower().strip()
     text = re.sub(r'\W+', ' ', text)
@@ -51,7 +45,7 @@ def preprocess_text(text):
     return text
 
 # -------------------------
-# Load your cleaned DataFrame and embeddings if they exist; otherwise, compute them.
+# Load cleaned DataFrame and embeddings
 # -------------------------
 if os.path.exists(embeddings_path) and os.path.exists(df_cleaned_path):
     embeddings = np.load(embeddings_path)
@@ -61,7 +55,7 @@ if os.path.exists(embeddings_path) and os.path.exists(df_cleaned_path):
 else:
     raise Exception("Embeddings not found. Please run the embedding computation pipeline first.")
 
-# Similarity function: modified to return index as well
+# Similarity function
 def find_most_similar_movie(input_plot, df, embeddings, model):
     processed_input = preprocess_text(input_plot)
     input_embedding = model.encode(processed_input, convert_to_numpy=True)
@@ -127,7 +121,7 @@ def similarity():
     explanation = generate_explanation(input_plot, matched_movie_plot, score)
     explanation_html = markdown2.markdown(explanation)
 
-    # Build result dictionary and ensure similarity_score is a Python float
+    # Build result dictionary
     result = {
         "input_plot": input_plot,
         "matched": matched_movie_plot,
