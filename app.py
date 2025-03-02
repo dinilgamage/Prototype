@@ -65,15 +65,15 @@ def find_most_similar_movie(input_plot, df, embeddings, model):
     best_match_score = similarities[max_idx]
     return best_match_movie, best_match_score, max_idx
 
-# DeepSeek explanation function via OpenRouter
+# Explanation function via OpenRouter
 API_KEY = os.environ.get('OPENROUTER_API_KEY')
 API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 def generate_explanation(plot1, plot2, similarity_score):
     prompt = (
         f"Two movie plots have been identified with a similarity score of {similarity_score:.2f}. "
-        "Based on the following two plots, explain in detail why these movies are similar. "
-        "Highlight the narrative structure, themes, character development, and any other key elements that contribute to this similarity.\n\n"
+        "Based on the following two plots, accurately explain in full detail why these movies are similar. "
+        "Highlight the narrative structure, themes, character development, and any other key elements that contribute to this similarity and also a conclusion at the end. Ensure these sections are seperated into detailed, structured and focused sections\n\n"
         f"Plot 1:\n{plot1}\n\n"
         f"Plot 2:\n{plot2}\n\n"
         "Explanation:"
@@ -84,7 +84,7 @@ def generate_explanation(plot1, plot2, similarity_score):
         'Content-Type': 'application/json'
     }
     data = {
-        "model": "deepseek/deepseek-chat:free",
+        "model": "meta-llama/llama-3-8b-instruct:free",
         "messages": [{"role": "user", "content": prompt}]
     }
     response = requests.post(API_URL, json=data, headers=headers)
