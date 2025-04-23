@@ -118,15 +118,23 @@ def similarity():
     input_plot = request.form.get("plot") or request.json.get("plot")
     if not input_plot:
         return render_template("index.html", error="No plot provided.")
-
+    
+    # Show the processed version of the input plot (with NER changes)
+    processed_input = normalize_names(input_plot)
+    print("Processed Input Plot:", processed_input)
+    
     # Find the most similar movie
     movie, score, best_idx = find_most_similar_movie(input_plot, df_cleaned, embeddings, sbert_model)
     matched_movie_plot = df_cleaned.iloc[best_idx]['Plot']
-
+    
+    # Process the matched movie plot for NER changes as well and print
+    processed_matched = normalize_names(matched_movie_plot)
+    print("Processed Matched Movie Plot:", processed_matched)
+    
     # Generate explanation using DeepSeek
     explanation = generate_explanation(input_plot, matched_movie_plot, score)
     explanation_html = markdown2.markdown(explanation)
-
+    
     # Build result dictionary
     result = {
         "input_plot": input_plot,
@@ -144,3 +152,4 @@ def similarity():
 # -------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
