@@ -7,42 +7,60 @@ import requests
 import markdown2
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-import spacy
+# Import Flair instead of spaCy
+from flair.data import Sentence
+from flair.models import SequenceTagger
 
 # -------------------------
 # Configuration and Setup
 # -------------------------
 app = Flask(__name__)
 
-# Define file paths for saved embeddings and DataFrame
-embeddings_path = "Embeddings5/embeddings.npy"
-df_cleaned_path = "Embeddings5/df_cleaned.pkl"
+# Update file paths to point to the new test embeddings
+embeddings_path = "Embeddings_test/embeddings.npy"
+df_cleaned_path = "Embeddings_test/df_cleaned.pkl"
 
 # Load the SBERT model
 sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Load spaCy's English model for named entity recognition
-nlp = spacy.load('en_core_web_sm')
+# Load Flair's NER model instead of spaCy
+ner_tagger = SequenceTagger.load('ner')
 
-# Updated Named Entity Normalization
+# Updated Named Entity Normalization using Flair
 def normalize_names(text):
-    doc = nlp(text)
-    # Create a copy of the text with all tokens
-    tokens = [token.text for token in doc]
+    # Create a Flair sentence
+    sentence = Sentence(text)
     
-    # Process entities in reverse order to avoid index issues
-    for ent in reversed(doc.ents):
-        start = ent.start
-        end = ent.end
-        
-        # Replace any named entity with <NAME>
-        if ent.label_ in ["PERSON", "GPE", "LOC", "FAC", "ORG", "NORP"]:
-            tokens[start:end] = ["<NAME>"]
+    # Run NER on the sentence
+    ner_tagger.predict(sentence)
     
-    return " ".join(tokens)
+    # Extract entities and their positions
+    entities = []
+    for entity in sentence.get_spans('ner'):
+        start_pos = entity.start_position
+        end_pos = entity.end_position
+        entity_type = entity.tag
+        entities.append((start_pos, end_pos, entity_type))
+    
+    # Sort entities in reverse order by start position to safely replace text
+    entities.sort(reverse=True)
+    
+    # Replace entities with appropriate tokens
+    for start_pos, end_pos, entity_type in entities:
+        if entity_type == 'PER':
+            text = text[:start_pos] + "<PERSON>" + text[end_pos:]
+        elif entity_type in ['LOC', 'GPE']:
+            text = text[:start_pos] + "<LOCATION>" + text[end_pos:]
+        elif entity_type == 'ORG':
+            text = text[:start_pos] + "<ORGANIZATION>" + text[end_pos:]
+        elif entity_type == 'NORP':
+            text = text[:start_pos] + "<NATIONALITY>" + text[end_pos:]
+        elif entity_type == 'MISC':
+            text = text[:start_pos] + "<MISCELLANEOUS>" + text[end_pos:]
+    
+    return text
 
-
-# Preprocessing function remains the same, now using improved normalization
+# Preprocessing function remains the same
 def preprocess_text(text):
     text = normalize_names(text)
     text = text.lower().strip()
@@ -118,15 +136,23 @@ def similarity():
     input_plot = request.form.get("plot") or request.json.get("plot")
     if not input_plot:
         return render_template("index.html", error="No plot provided.")
-
+    
+    # Show the processed version of the input plot (with NER changes)
+    processed_input = normalize_names(input_plot)
+    print("Processed Input Plot:", processed_input)
+    
     # Find the most similar movie
     movie, score, best_idx = find_most_similar_movie(input_plot, df_cleaned, embeddings, sbert_model)
     matched_movie_plot = df_cleaned.iloc[best_idx]['Plot']
-
+    
+    # Process the matched movie plot for NER changes as well and print
+    processed_matched = normalize_names(matched_movie_plot)
+    print("Processed Matched Movie Plot:", processed_matched)
+    
     # Generate explanation using DeepSeek
     explanation = generate_explanation(input_plot, matched_movie_plot, score)
     explanation_html = markdown2.markdown(explanation)
-
+    
     # Build result dictionary
     result = {
         "input_plot": input_plot,
@@ -144,3 +170,4 @@ def similarity():
 # -------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+

@@ -2,34 +2,53 @@ import pandas as pd
 import numpy as np
 import pickle
 import re
-import spacy
+import os
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
+from flair.data import Sentence
+from flair.models import SequenceTagger
 
 tqdm.pandas()
 
-# Load spaCy's English model for named entity recognition
-nlp = spacy.load('en_core_web_sm')
+# Load Flair's NER model (this loads a more accurate model than spaCy's default)
+ner_tagger = SequenceTagger.load('ner')
 
-# Enhanced named entity normalization
+# Enhanced named entity normalization using Flair
 def normalize_names(text):
-    doc = nlp(text)
-    # Create a copy of the text with all tokens
-    tokens = [token.text for token in doc]
+    # Create a Flair sentence
+    sentence = Sentence(text)
     
-    # Process entities in reverse order to avoid index issues
-    for ent in reversed(doc.ents):
-        start = ent.start
-        end = ent.end
-        
-        # Replace any named entity with <NAME>
-        if ent.label_ in ["PERSON", "GPE", "LOC", "FAC", "ORG", "NORP"]:
-            tokens[start:end] = ["<NAME>"]
+    # Run NER on the sentence
+    ner_tagger.predict(sentence)
     
-    return " ".join(tokens)
+    # Extract entities and their positions
+    entities = []
+    for entity in sentence.get_spans('ner'):
+        start_pos = entity.start_position
+        end_pos = entity.end_position
+        entity_type = entity.tag
+        entities.append((start_pos, end_pos, entity_type))
+    
+    # Sort entities in reverse order by start position to safely replace text
+    entities.sort(reverse=True)
+    
+    # Replace entities with appropriate tokens
+    for start_pos, end_pos, entity_type in entities:
+        if entity_type == 'PER':
+            text = text[:start_pos] + "<PERSON>" + text[end_pos:]
+        elif entity_type in ['LOC', 'GPE']:
+            text = text[:start_pos] + "<LOCATION>" + text[end_pos:]
+        elif entity_type == 'ORG':
+            text = text[:start_pos] + "<ORGANIZATION>" + text[end_pos:]
+        elif entity_type == 'NORP':
+            text = text[:start_pos] + "<NATIONALITY>" + text[end_pos:]
+        elif entity_type == 'MISC':
+            text = text[:start_pos] + "<MISCELLANEOUS>" + text[end_pos:]
+    
+    return text
 
-# Updated preprocessing function that includes name normalization
+# The rest of your preprocessing function remains the same
 def preprocess_text(text):
     text = normalize_names(text)
     text = text.lower().strip()
@@ -42,13 +61,20 @@ file_path = r"C:\Users\Dinil\Desktop\Dinil\FYP\Datasets\wiki_movie_plots_deduped
 df = pd.read_csv(file_path)
 df_cleaned = df.dropna(subset=['Plot'])
 
+# REDUCED TO 5 ENTRIES FOR TESTING
+df_cleaned = df_cleaned.head(5)
+print(f"Testing with reduced dataset of {len(df_cleaned)} entries")
+
 # Apply updated preprocessing
+print("Preprocessing movie plots...")
 df_cleaned['Processed Plot'] = df_cleaned['Plot'].progress_apply(preprocess_text)
 
 # Load the SBERT model
+print("Loading Sentence-BERT model...")
 sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Compute embeddings
+print("Computing embeddings...")
 embeddings_list = []
 for text in tqdm(df_cleaned['Processed Plot'], desc="Computing embeddings"):
     embedding = sbert_model.encode(text, convert_to_numpy=True)
@@ -56,12 +82,15 @@ for text in tqdm(df_cleaned['Processed Plot'], desc="Computing embeddings"):
 embeddings = np.vstack(embeddings_list)
 
 # Define file paths to save the embeddings and DataFrame locally
-embeddings_path = "Embeddings5/embeddings.npy" 
-df_cleaned_path = "Embeddings5/df_cleaned.pkl"
+os.makedirs("Embeddings_test", exist_ok=True)
+embeddings_path = "Embeddings_test/embeddings.npy"
+df_cleaned_path = "Embeddings_test/df_cleaned.pkl"
 
-# Save the computed embeddings and DataFrame
+# Save the embeddings and DataFrame
+print("Saving embeddings and processed data...")
 np.save(embeddings_path, embeddings)
 with open(df_cleaned_path, "wb") as f:
     pickle.dump(df_cleaned, f)
-    
-print("Saved new embeddings and DataFrame with updated preprocessing.")
+
+print(f"Processing complete. Saved embeddings to {embeddings_path} and DataFrame to {df_cleaned_path}")
+print(f"Processed {len(df_cleaned)} movie plots with embedding dimension {embeddings.shape[1]}")
