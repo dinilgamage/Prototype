@@ -15,8 +15,8 @@ import spacy
 app = Flask(__name__)
 
 # Define file paths for saved embeddings and DataFrame
-embeddings_path = "Embeddings3/embeddings.npy"
-df_cleaned_path = "Embeddings3/df_cleaned.pkl"
+embeddings_path = "Embeddings5/embeddings.npy"
+df_cleaned_path = "Embeddings5/df_cleaned.pkl"
 
 # Load the SBERT model
 sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -24,24 +24,30 @@ sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
 # Load spaCy's English model for named entity recognition
 nlp = spacy.load('en_core_web_sm')
 
-# Named entity normalization
+# Updated Named Entity Normalization
 def normalize_names(text):
     doc = nlp(text)
-    normalized_tokens = []
-    for token in doc:
-        if token.ent_type_ in ["PERSON", "GPE", "LOC"]:
-            normalized_tokens.append("NAME")
-        else:
-            normalized_tokens.append(token.text)
-    return " ".join(normalized_tokens)
+    # Create a copy of the text with all tokens
+    tokens = [token.text for token in doc]
+    
+    # Process entities in reverse order to avoid index issues
+    for ent in reversed(doc.ents):
+        start = ent.start
+        end = ent.end
+        
+        # Replace any named entity with <NAME>
+        if ent.label_ in ["PERSON", "GPE", "LOC", "FAC", "ORG", "NORP"]:
+            tokens[start:end] = ["<NAME>"]
+    
+    return " ".join(tokens)
 
-# Preprocessing function
+
+# Preprocessing function remains the same, now using improved normalization
 def preprocess_text(text):
     text = normalize_names(text)
     text = text.lower().strip()
     text = re.sub(r'\W+', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
-
     return text
 
 # -------------------------

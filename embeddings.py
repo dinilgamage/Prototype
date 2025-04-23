@@ -12,16 +12,22 @@ tqdm.pandas()
 # Load spaCy's English model for named entity recognition
 nlp = spacy.load('en_core_web_sm')
 
-# Function to normalize person names by replacing them with "NAME"
+# Enhanced named entity normalization
 def normalize_names(text):
     doc = nlp(text)
-    normalized_tokens = []
-    for token in doc:
-        if token.ent_type_ in ["PERSON", "GPE", "LOC"]:
-            normalized_tokens.append("NAME")
-        else:
-            normalized_tokens.append(token.text)
-    return " ".join(normalized_tokens)
+    # Create a copy of the text with all tokens
+    tokens = [token.text for token in doc]
+    
+    # Process entities in reverse order to avoid index issues
+    for ent in reversed(doc.ents):
+        start = ent.start
+        end = ent.end
+        
+        # Replace any named entity with <NAME>
+        if ent.label_ in ["PERSON", "GPE", "LOC", "FAC", "ORG", "NORP"]:
+            tokens[start:end] = ["<NAME>"]
+    
+    return " ".join(tokens)
 
 # Updated preprocessing function that includes name normalization
 def preprocess_text(text):
@@ -50,8 +56,8 @@ for text in tqdm(df_cleaned['Processed Plot'], desc="Computing embeddings"):
 embeddings = np.vstack(embeddings_list)
 
 # Define file paths to save the embeddings and DataFrame locally
-embeddings_path = "Embeddings3/embeddings.npy" 
-df_cleaned_path = "Embeddings3/df_cleaned.pkl"
+embeddings_path = "Embeddings5/embeddings.npy" 
+df_cleaned_path = "Embeddings5/df_cleaned.pkl"
 
 # Save the computed embeddings and DataFrame
 np.save(embeddings_path, embeddings)
