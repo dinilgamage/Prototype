@@ -62,7 +62,7 @@ df = pd.read_csv(file_path)
 df_cleaned = df.dropna(subset=['Plot'])
 
 # REDUCED TO 5 ENTRIES FOR TESTING
-df_cleaned = df_cleaned.head(5)
+df_cleaned = df_cleaned.head(10)
 print(f"Testing with reduced dataset of {len(df_cleaned)} entries")
 
 # Apply updated preprocessing
@@ -71,7 +71,7 @@ df_cleaned['Processed Plot'] = df_cleaned['Plot'].progress_apply(preprocess_text
 
 # Load the SBERT model
 print("Loading Sentence-BERT model...")
-sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+sbert_model = SentenceTransformer('all-mpnet-base-v2')
 
 # Compute embeddings
 print("Computing embeddings...")

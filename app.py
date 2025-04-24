@@ -21,7 +21,7 @@ embeddings_path = "Embeddings_test/embeddings.npy"
 df_cleaned_path = "Embeddings_test/df_cleaned.pkl"
 
 # Load the SBERT model
-sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+sbert_model = SentenceTransformer('all-mpnet-base-v2')
 
 # Load Flair's NER model instead of spaCy
 ner_tagger = SequenceTagger.load('ner')
