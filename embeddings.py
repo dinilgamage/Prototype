@@ -46,7 +46,7 @@ df_cleaned = df.dropna(subset=['Plot'])
 df_cleaned['Processed Plot'] = df_cleaned['Plot'].progress_apply(preprocess_text)
 
 # Load the SBERT model
-sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+sbert_model = SentenceTransformer('all-mpnet-base-v2')
 
 # Compute embeddings
 embeddings_list = []
@@ -56,8 +56,8 @@ for text in tqdm(df_cleaned['Processed Plot'], desc="Computing embeddings"):
 embeddings = np.vstack(embeddings_list)
 
 # Define file paths to save the embeddings and DataFrame locally
-embeddings_path = "Embeddings5/embeddings.npy" 
-df_cleaned_path = "Embeddings5/df_cleaned.pkl"
+embeddings_path = "Embeddings5_new_transformer/embeddings.npy" 
+df_cleaned_path = "Embeddings5_new_transformer/df_cleaned.pkl"
 
 # Save the computed embeddings and DataFrame
 np.save(embeddings_path, embeddings)
