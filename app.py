@@ -15,11 +15,11 @@ import spacy
 app = Flask(__name__)
 
 # Define file paths for saved embeddings and DataFrame
-embeddings_path = "Embeddings5_new_transformer/embeddings.npy"
-df_cleaned_path = "Embeddings5_new_transformer/df_cleaned.pkl"
+embeddings_path = "Embeddings5_BAAI/embeddings.npy"
+df_cleaned_path = "Embeddings5_BAAI/df_cleaned.pkl"
 
 # Load the SBERT model
-sbert_model = SentenceTransformer('all-mpnet-base-v2')
+sbert_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 
 # Load spaCy's English model for named entity recognition
 nlp = spacy.load('en_core_web_sm')
