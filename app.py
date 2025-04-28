@@ -69,10 +69,10 @@ def find_best_match(plot: str):
 # ----------  LLM scene extractor ----------
 def extract_scenes(plot: str, cap: int = MAX_SCENES):
     prompt = (
-        "DO NOT include MARKDOWN FORMATTING, provide the response as a plain JSON array. This is vital and mardown will break the code."
+        "DO NOT include MARKDOWN FORMATTING if this is done the reponse will be invalid, provide the response as a plain JSON array. This is vital and mardown will break the code."
         "You are an expert screenplay analyst with 20 years of experience in scene breakdown. "
         "I need you to split the movie plot into distinct scenes based on these EXACT criteria:\n\n"
-        "1. Create 5-8 scenes total (never more than 10)\n"
++       "1. Create between 5 and 15 scenes, depending on plot length (never more than 20)\n"
         "2. Each scene should represent a distinct narrative unit with a clear purpose\n"
         "3. Break scenes when there is:\n"
         "   - A change in location\n"
