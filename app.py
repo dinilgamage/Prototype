@@ -221,7 +221,8 @@ def similarity():
 
     # LLM explanation
     explanation_md = markdown2.markdown(
-        generate_explanation(input_plot, matched_plot, combo_sim)
+        # generate_explanation(input_plot, matched_plot, combo_sim)
+        "Explanation placeholder: This is where the LLM explanation will go."
     )
 
     # Package for template
