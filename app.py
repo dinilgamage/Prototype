@@ -28,7 +28,7 @@ sbert_model = SentenceTransformer(BGE)
 sbert_model_sequnce = SentenceTransformer(MINILM)
 nlp         = spacy.load("en_core_web_sm")
 
-API_KEY = os.environ.get("OPENROUTER_API_KEY2")
+API_KEY = os.environ.get("OPENROUTER_API_KEY")
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "google/gemini-2.0-flash-exp:free"
 
