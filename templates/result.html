@@ -4,156 +4,86 @@
   <title>Similarity Results</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-      margin: 0;
-      padding: 20px;
-      color: #333;
-      min-height: 100vh;
+    body{
+      font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;
+      background:linear-gradient(135deg,#f5f7fa 0%,#c3cfe2 100%);
+      margin:0;padding:20px;min-height:100vh;color:#333
     }
-    
-    .container {
-      max-width: 1100px;
-      margin: 30px auto;
-      background: rgba(255, 255, 255, 0.97);
-      border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
-      padding: 35px;
+    .container{
+      max-width:1100px;margin:30px auto;background:rgba(255,255,255,.97);
+      border-radius:12px;box-shadow:0 8px 32px rgba(31,38,135,.15);padding:35px
     }
-    
-    .header {
-      text-align: center;
-      margin-bottom: 35px;
-      padding-bottom: 20px;
-      border-bottom: 2px solid #f0f0f0;
+    .header{text-align:center;margin-bottom:35px;padding-bottom:20px;border-bottom:2px solid #f0f0f0}
+    .header h2{margin:0;color:#2c3e50;font-size:2.2em;text-shadow:1px 1px 2px rgba(0,0,0,.05)}
+    .badges{margin-top:15px}
+    .score-badge{
+      display:inline-block;margin:4px 6px;padding:8px 15px;border-radius:20px;
+      color:#fff;font-weight:bold;font-size:.9em;box-shadow:0 2px 5px rgba(0,0,0,.1)
     }
-    
-    .header h2 {
-      margin: 0;
-      color: #2c3e50;
-      font-size: 2.2em;
-      text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
+    .plot     {background:linear-gradient(135deg,#3498db 0%,#2980b9 100%)}
+    .scene    {background:linear-gradient(135deg,#8e44ad 0%,#71368a 100%)}
+    .combined {background:linear-gradient(135deg,#2ecc71 0%,#27ae60 100%)}
+    .content{
+      display:flex;gap:25px;margin-bottom:35px
     }
-    
-    .score-badge {
-      display: inline-block;
-      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-      color: white;
-      padding: 8px 15px;
-      border-radius: 20px;
-      font-weight: bold;
-      margin-top: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    @media(max-width:768px){.content{flex-direction:column}}
+    .content .box{
+      flex:1;background:#fafafa;border-radius:10px;padding:25px;box-sizing:border-box;
+      box-shadow:0 2px 10px rgba(0,0,0,.05);border-left:4px solid #3498db
     }
-    
-    .content {
-      display: flex;
-      gap: 25px;
-      margin-bottom: 35px;
+    .content .box h3{color:#2c3e50;border-bottom:1px solid #eee;padding-bottom:10px;margin-top:0;margin-bottom:20px}
+    .content .box p{line-height:1.7;color:#444}
+    .explanation{
+      background:#fafafa;border-radius:10px;padding:25px;margin-bottom:30px;
+      box-shadow:0 2px 10px rgba(0,0,0,.05);border-left:4px solid #2ecc71
     }
-    
-    @media (max-width: 768px) {
-      .content {
-        flex-direction: column;
-      }
+    .explanation h3{color:#2c3e50;border-bottom:1px solid #eee;padding-bottom:10px;margin-top:0;margin-bottom:20px}
+    .explanation div{line-height:1.7;color:#444}
+    .back-button{text-align:center;margin-top:25px}
+    a.button{
+      display:inline-block;text-decoration:none;background:linear-gradient(135deg,#2ecc71 0%,#27ae60 100%);
+      color:#fff;padding:12px 25px;border-radius:30px;font-weight:bold;transition:transform .2s,box-shadow .2s;
+      box-shadow:0 4px 6px rgba(50,50,93,.11),0 1px 3px rgba(0,0,0,.08)
     }
-    
-    .content .box {
-      flex: 1;
-      background: #fafafa;
-      border-radius: 10px;
-      padding: 25px;
-      box-sizing: border-box;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      border-left: 4px solid #3498db;
-    }
-    
-    .content .box h3 {
-      color: #2c3e50;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
-      margin-top: 0;
-      margin-bottom: 20px;
-    }
-    
-    .content .box p {
-      line-height: 1.7;
-      color: #444;
-    }
-    
-    .explanation {
-      background: #fafafa;
-      border-radius: 10px;
-      padding: 25px;
-      box-sizing: border-box;
-      margin-bottom: 30px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      border-left: 4px solid #2ecc71;
-    }
-    
-    .explanation h3 {
-      color: #2c3e50;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
-      margin-top: 0;
-      margin-bottom: 20px;
-    }
-    
-    .explanation div {
-      line-height: 1.7;
-      color: #444;
-    }
-    
-    .back-button {
-      text-align: center;
-      margin-top: 25px;
-    }
-    
-    a.button {
-      display: inline-block;
-      text-decoration: none;
-      background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-      color: white;
-      padding: 12px 25px;
-      border-radius: 30px;
-      font-weight: bold;
-      transition: transform 0.2s, box-shadow 0.2s;
-      box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
-    }
-    
-    a.button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
-      text-decoration: none;
+    a.button:hover{
+      transform:translateY(-2px);
+      box-shadow:0 7px 14px rgba(50,50,93,.1),0 3px 6px rgba(0,0,0,.08)
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <!-- title -->
     <div class="header">
-      <h2>{{ result.best_match_movie }}</h2>
-      <div class="score-badge">Similarity Score: {{ "%.2f"|format(result.similarity_score) }}</div>
+      <h2>{{ result.matched_title }}</h2>
+
+      <!-- three similarity badges -->
+      <div class="badges">
+        <span class="score-badge combined">Combined: {{ "%.2f"|format(result.combined_similarity) }}</span>
+        <span class="score-badge plot">Whole-plot: {{ "%.2f"|format(result.plot_similarity) }}</span>
+        <span class="score-badge scene">Scene progression: {{ "%.2f"|format(result.scene_progression_similarity) }}</span>
+      </div>
     </div>
 
+    <!-- plots side-by-side -->
     <div class="content">
       <div class="box">
-        <h3>Input Plot</h3>
+        <h3>Your Input Plot</h3>
         <p>{{ result.input_plot | safe }}</p>
       </div>
       <div class="box">
         <h3>Matched Movie Plot</h3>
-        <p>{{ result.matched | safe }}</p>
+        <p>{{ result.matched_plot | safe }}</p>
       </div>
     </div>
 
+    <!-- explanation -->
     <div class="explanation">
-      <h3>Why These Movies Are Similar</h3>
-      <div>
-        {{ result.explanation | safe }}
-      </div>
+      <h3>Why These Stories Match</h3>
+      <div>{{ result.explanation_html | safe }}</div>
     </div>
 
+    <!-- back -->
     <div class="back-button">
       <a href="/" class="button">Find Another Similar Movie</a>
     </div>

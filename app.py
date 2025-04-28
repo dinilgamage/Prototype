@@ -1,155 +1,184 @@
-from flask import Flask, request, jsonify, render_template
-import os
+# app.py  –  Movie-plot similarity + scene-progression metric
+# -----------------------------------------------------------
+from flask import Flask, request, render_template
+import os, re, json, pickle, requests
 import numpy as np
-import pickle
-import re
-import requests
 import markdown2
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
+from fastdtw import fastdtw
+from scipy.spatial.distance import cosine as cosine_distance
 
 # -------------------------
-# Configuration and Setup
+# Configuration & startup
 # -------------------------
 app = Flask(__name__)
 
-# Define file paths for saved embeddings and DataFrame
-embeddings_path = "Embeddings5_BAAI/embeddings.npy"
-df_cleaned_path = "Embeddings5_BAAI/df_cleaned.pkl"
+EMB_PATH   = "EmbeddingsBGE/embeddings.npy"
+DF_PATH    = "EmbeddingsBGE/df_cleaned.pkl"
+ALPHA      = 0.7                      # weight for whole-plot vs. scene metric
+MAX_SCENES = 20                       # LLM scene cap
 
-# Load the SBERT model
-sbert_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
+BGE = "BAAI/bge-large-en-v1.5"
+MINILM = "all-MiniLM-L6-v2"
+MPNET = "all-mpnet-base-v2"
 
-# Load spaCy's English model for named entity recognition
-nlp = spacy.load('en_core_web_sm')
+sbert_model = SentenceTransformer(BGE)
+sbert_model_sequnce = SentenceTransformer(MINILM)
+nlp         = spacy.load("en_core_web_sm")
 
-# Updated Named Entity Normalization
-def normalize_names(text):
+API_KEY = os.environ.get("OPENROUTER_API_KEY2")
+API_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODEL = "google/gemini-2.0-flash-exp:free"
+
+# -------------------------
+# Utility helpers
+# -------------------------
+def normalize_names(text: str) -> str:
+    """Replace PERSON/GPE/ORG… entities with <NAME> so names don’t dominate."""
     doc = nlp(text)
-    # Create a copy of the text with all tokens
-    tokens = [token.text for token in doc]
-    
-    # Process entities in reverse order to avoid index issues
+    tokens = [tok.text for tok in doc]
     for ent in reversed(doc.ents):
-        start = ent.start
-        end = ent.end
-        
-        # Replace any named entity with <NAME>
-        if ent.label_ in ["PERSON", "GPE", "LOC", "FAC", "ORG", "NORP"]:
-            tokens[start:end] = ["<NAME>"]
-    
+        if ent.label_ in {"PERSON", "GPE", "LOC", "FAC", "ORG", "NORP"}:
+            tokens[ent.start : ent.end] = ["<NAME>"]
     return " ".join(tokens)
 
-
-# Preprocessing function remains the same, now using improved normalization
-def preprocess_text(text):
+def preprocess_text(text: str) -> str:
     text = normalize_names(text)
     text = text.lower().strip()
-    text = re.sub(r'\W+', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    text = re.sub(r"\W+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
-# -------------------------
-# Load cleaned DataFrame and embeddings
-# -------------------------
-if os.path.exists(embeddings_path) and os.path.exists(df_cleaned_path):
-    embeddings = np.load(embeddings_path)
-    with open(df_cleaned_path, "rb") as f:
+# ----------  Load catalog ----------
+if os.path.exists(EMB_PATH) and os.path.exists(DF_PATH):
+    embeddings = np.load(EMB_PATH)
+    with open(DF_PATH, "rb") as f:
         df_cleaned = pickle.load(f)
-    print("Loaded saved embeddings and DataFrame.")
+    print("✅ Loaded embeddings and DataFrame")
 else:
-    raise Exception("Embeddings not found. Please run the embedding computation pipeline first.")
+    raise RuntimeError("❌ Embedding files not found – run preprocessing first.")
 
-# Similarity function
-def find_most_similar_movie(input_plot, df, embeddings, model):
-    processed_input = preprocess_text(input_plot)
-    input_embedding = model.encode(processed_input, convert_to_numpy=True)
-    similarities = cosine_similarity([input_embedding], embeddings)[0]
-    max_idx = np.argmax(similarities)
-    best_match_movie = df.iloc[max_idx]['Title']
-    best_match_score = similarities[max_idx]
-    return best_match_movie, best_match_score, max_idx
+# ----------  Whole-plot similarity ----------
+def find_best_match(plot: str):
+    emb_in  = sbert_model.encode(preprocess_text(plot), convert_to_numpy=True)
+    sims    = cosine_similarity([emb_in], embeddings)[0]
+    idx     = int(np.argmax(sims))
+    return df_cleaned.iloc[idx]["Title"], sims[idx], idx
 
-# Explanation function via OpenRouter
-API_KEY = os.environ.get('OPENROUTER_API_KEY')
-API_URL = 'https://openrouter.ai/api/v1/chat/completions'
-
-def generate_explanation(plot1, plot2, similarity_score):
+# ----------  LLM scene extractor ----------
+def extract_scenes(plot: str, cap: int = MAX_SCENES):
     prompt = (
-        f"Two movie plots have been identified with a similarity score of {similarity_score:.2f}. "
-        "Based on the following two plots, accurately explain in full detail why these movies are similar. "
-        "Highlight the narrative structure, themes, character development, and any other key elements that contribute to this similarity and also a conclusion at the end. Ensure these sections are seperated into detailed, structured and focused sections\n\n"
-        f"Plot 1:\n{plot1}\n\n"
-        f"Plot 2:\n{plot2}\n\n"
-        "Explanation:"
+        "DO NOT include MARKDOWN FORMATTING, provide the response as a plain JSON array. This is vital and mardown will break the code."
+        "You are an expert screenplay analyst with 20 years of experience in scene breakdown. "
+        "I need you to split the movie plot into distinct scenes based on these EXACT criteria:\n\n"
+        "1. Create 5-8 scenes total (never more than 10)\n"
+        "2. Each scene should represent a distinct narrative unit with a clear purpose\n"
+        "3. Break scenes when there is:\n"
+        "   - A change in location\n"
+        "   - A significant time jump\n"
+        "   - A shift in character focus\n"
+        "   - A transition between major plot events\n"
+        "4. Each scene should be 3-5 sentences long when possible\n"
+        "5. Do NOT paraphrase or alter any wording from the original text\n"
+        "6. Each scene must be extracted VERBATIM from the input text\n\n"
+        "Example format: [\"Scene 1 text exactly as written...\", \"Scene 2 text exactly as written...\"]\n\n"
+        f"PLOT TO ANALYZE:\n{plot}\n"
     )
-
     headers = {
-        'Authorization': f'Bearer {API_KEY}',
-        'Content-Type': 'application/json'
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
     }
     data = {
-        "model": "meta-llama/llama-3-8b-instruct:free",
-        "messages": [{"role": "user", "content": prompt}]
+        "model": MODEL,
+        "temperature": 0.2,
+        "messages": [{"role": "user", "content": prompt}],
     }
-    response = requests.post(API_URL, json=data, headers=headers)
-    if response.status_code == 200:
-        response_json = response.json()
-        explanation = response_json['choices'][0]['message']['content'].strip()
-        return explanation
-    else:
-        print(f"Failed to fetch data from API. Status Code: {response.status_code}")
-        print("Response:", response.text)
-        return "Error: Unable to generate explanation."
+    r = requests.post(API_URL, json=data, headers=headers, timeout=60)
+    r.raise_for_status()
+    raw = r.json()["choices"][0]["message"]["content"].strip()
+    print("RAW LLM OUTPUT:\n", raw)
+    try:
+        scenes = json.loads(raw)
+        scenes = [s.strip() for s in scenes if s.strip()]
+        return scenes[:cap]
+    except Exception:
+        print("⚠️  Scene JSON parse failed – falling back to paragraph split.")
+        return [p.strip() for p in plot.split("\n") if p.strip()][:cap]
+
+# ----------  Scene-progression similarity ----------
+def scene_progression_similarity(plot_a: str, plot_b: str) -> float:
+    sc_a = extract_scenes(plot_a)
+    sc_b = extract_scenes(plot_b)
+    emb_a = sbert_model_sequnce.encode([preprocess_text(s) for s in sc_a], convert_to_numpy=True)
+    emb_b = sbert_model_sequnce.encode([preprocess_text(s) for s in sc_b], convert_to_numpy=True)
+    dist, _ = fastdtw(emb_a, emb_b, dist=cosine_distance)
+    norm_dist = dist / max(len(emb_a), len(emb_b))  # ~[0,2]
+    return 1 / (1 + norm_dist)                      # ∈ (0,1]
+
+def combined_score(base: float, scene_sim: float) -> float:
+    return ALPHA * base + (1 - ALPHA) * scene_sim
+
+# ----------  LLM explanation ----------
+def generate_explanation(plot1: str, plot2: str, score: float) -> str:
+    prompt = (
+        f"Two movie plots have a combined similarity score of {score:.2f}. "
+        "Explain in detail why they are similar, covering story structure, themes, "
+        "character arcs, and other key elements. Provide a clear conclusion. "
+        "Use well-labeled sections.\n\n"
+        f"Plot 1:\n{plot1}\n\nPlot 2:\n{plot2}\n\nExplanation:"
+    )
+    headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+    data = {
+        "model": MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    r = requests.post(API_URL, json=data, headers=headers, timeout=90)
+    if r.status_code == 200:
+        return r.json()["choices"][0]["message"]["content"].strip()
+    print("❌ Explanation LLM call failed:", r.text)
+    return "Error: Unable to generate explanation."
 
 # -------------------------
-# Flask Routes
+# Flask routes
 # -------------------------
-
 @app.route("/")
 def index():
-    # Render a simple HTML form.
     return render_template("index.html")
 
 @app.route("/similarity", methods=["POST"])
 def similarity():
-    # Retrieve the movie plot from the form or JSON payload
-    input_plot = request.form.get("plot") or request.json.get("plot")
+    input_plot = request.form.get("plot") or (request.json or {}).get("plot")
     if not input_plot:
         return render_template("index.html", error="No plot provided.")
-    
-    # Show the processed version of the input plot (with NER changes)
-    processed_input = normalize_names(input_plot)
-    print("Processed Input Plot:", processed_input)
-    
-    # Find the most similar movie
-    movie, score, best_idx = find_most_similar_movie(input_plot, df_cleaned, embeddings, sbert_model)
-    matched_movie_plot = df_cleaned.iloc[best_idx]['Plot']
-    
-    # Process the matched movie plot for NER changes as well and print
-    processed_matched = normalize_names(matched_movie_plot)
-    print("Processed Matched Movie Plot:", processed_matched)
-    
-    # Generate explanation using DeepSeek
-    explanation = generate_explanation(input_plot, matched_movie_plot, score)
-    explanation_html = markdown2.markdown(explanation)
-    
-    # Build result dictionary
+
+    # Whole-plot match
+    title, base_sim, idx = find_best_match(input_plot)
+    matched_plot = df_cleaned.iloc[idx]["Plot"]
+
+    # New scene-progression metric & blend
+    scene_sim = scene_progression_similarity(input_plot, matched_plot)
+    combo_sim = combined_score(base_sim, scene_sim)
+
+    # LLM explanation
+    explanation_md = markdown2.markdown(
+        generate_explanation(input_plot, matched_plot, combo_sim)
+    )
+
+    # Package for template
     result = {
         "input_plot": input_plot,
-        "matched": matched_movie_plot,
-        "best_match_movie": movie,
-        "similarity_score": float(score),
-        "explanation": explanation_html
+        "matched_plot": matched_plot,
+        "matched_title": title,
+        "plot_similarity": round(float(base_sim), 3),
+        "scene_progression_similarity": round(float(scene_sim), 3),
+        "combined_similarity": round(float(combo_sim), 3),
+        "explanation_html": explanation_md,
     }
-    
-    # Render result template with the results
     return render_template("result.html", result=result)
 
 # -------------------------
-# Run the Flask Application
+# Main
 # -------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
+    app.run(host="0.0.0.0", port=5000, debug=True)   # disable debug in prod!

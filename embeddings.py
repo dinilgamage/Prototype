@@ -42,10 +42,10 @@ file_path = r"C:\Users\Dinil\Desktop\Dinil\FYP\Datasets\wiki_movie_plots_deduped
 df = pd.read_csv(file_path)
 df_cleaned = df.dropna(subset=['Plot'])
 
-# remove this later
-# LIMIT TO FIRST 10 ROWS FOR TESTING
-df_cleaned = df_cleaned.head(10)
-print(f"Limited dataset to {len(df_cleaned)} entries for faster testing")
+# # remove this later
+# # LIMIT TO FIRST 10 ROWS FOR TESTING
+# df_cleaned = df_cleaned.head(10)
+# print(f"Limited dataset to {len(df_cleaned)} entries for faster testing")
 
 # Apply updated preprocessing
 df_cleaned['Processed Plot'] = df_cleaned['Plot'].progress_apply(preprocess_text)
@@ -61,8 +61,8 @@ for text in tqdm(df_cleaned['Processed Plot'], desc="Computing embeddings"):
 embeddings = np.vstack(embeddings_list)
 
 # Define file paths to save the embeddings and DataFrame locally
-embeddings_path = "Embeddings5_BAAI/bge-large-en-v1.5/embeddings.npy" 
-df_cleaned_path = "Embeddings5_BAAI/bge-large-en-v1.5/df_cleaned.pkl"
+embeddings_path = "Embeddings5_BAAI/embeddings.npy" 
+df_cleaned_path = "Embeddings5_BAAI/df_cleaned.pkl"
 
 # Save the computed embeddings and DataFrame
 np.save(embeddings_path, embeddings)
