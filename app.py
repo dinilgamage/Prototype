@@ -132,15 +132,17 @@ def scene_progression_similarity_llm(plot_a: str, plot_b: str) -> float:
         "1. Break each plot into 5-7 key scenes\n"
         "2. Compare how the scenes progress in both plots (setup, conflict, resolution, etc.)\n"
         "3. Identify structural similarities in how the stories unfold\n"
-        "4. Calculate a scene progression similarity score from 0.0 to 1.0 where:\n"
+        "4. Recognize similar narrative beats even when described with completely different vocabulary\n\n"
+        "5. Calculate a scene progression similarity score from 0.0 to 1.0 where:\n"
         "   - 1.0: Nearly identical scene progression\n"
         "   - 0.7-0.9: Very similar narrative beats in similar order\n"
         "   - 0.4-0.6: Moderate similarities in structure\n"
         "   - 0.1-0.3: Few structural similarities\n"
         "   - 0.0: Completely different narrative structures\n\n"
-        "RESPOND WITH ONLY THE NUMERICAL SCORE, NOTHING ELSE.\n\n"
+        "IMPORTANT: Your score must be a precise value with 2 decimal places, NOT a whole number or range.\n\n"
+        "RESPOND WITH ONLY THE NUMERICAL SCORE (WITH 2 DECIMAL PLACES), NOTHING ELSE.\n\n"
         f"PLOT A:\n{plot_a}\n\nPLOT B:\n{plot_b}\n\n"
-        "Scene progression similarity score (0.0-1.0):"
+        "Scene progression similarity score (0.00-1.00):"
     )
     
     headers = {
