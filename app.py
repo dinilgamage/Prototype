@@ -25,7 +25,7 @@ MINILM = "all-MiniLM-L6-v2"
 MPNET = "all-mpnet-base-v2"
 
 sbert_model = SentenceTransformer(BGE)
-sbert_model_sequnce = SentenceTransformer(MINILM)
+sbert_model_sequence = SentenceTransformer(MINILM)
 nlp         = spacy.load("en_core_web_sm")
 
 API_KEY = os.environ.get("OPENROUTER_API_KEY2")
@@ -36,7 +36,7 @@ MODEL = "google/gemini-2.0-flash-exp:free"
 # Utility helpers
 # -------------------------
 def normalize_names(text: str) -> str:
-    """Replace PERSON/GPE/ORG… entities with <NAME> so names don’t dominate."""
+    """Replace PERSON/GPE/ORG… entities with <NAME> so names don't dominate."""
     doc = nlp(text)
     tokens = [tok.text for tok in doc]
     for ent in reversed(doc.ents):
@@ -66,13 +66,86 @@ def find_best_match(plot: str):
     idx     = int(np.argmax(sims))
     return df_cleaned.iloc[idx]["Title"], sims[idx], idx
 
-# ----------  LLM scene extractor ----------
-def extract_scenes(plot: str, cap: int = MAX_SCENES):
+# ----------  Sentence-based scene extraction (faster and more reliable) ----------
+def extract_scenes_from_sentences(plot: str, cap: int = MAX_SCENES) -> list:
+    """Extract scenes by intelligently grouping sentences together."""
+    # Use spaCy to split into sentences
+    doc = nlp(plot)
+    sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+    
+    # Calculate appropriate number of sentences per scene based on plot length
+    total_sentences = len(sentences)
+    target_scenes = min(8, max(5, total_sentences // 10))  # Aim for 5-8 scenes
+    sentences_per_scene = max(2, min(5, total_sentences // target_scenes))
+    
+    # Look for transition markers
+    transition_markers = ["later", "meanwhile", "next day", "that night", 
+                          "the following", "afterwards", "in the morning"]
+    
+    scene_breaks = [0]  # Always start with beginning of text
+    
+    # Find potential scene breaks based on transition words
+    for i, sent in enumerate(sentences[1:], 1):
+        lower_sent = sent.lower()
+        # Check for transition markers
+        if any(marker in lower_sent for marker in transition_markers):
+            scene_breaks.append(i)
+        # Check for location entities that might indicate scene changes
+        sent_doc = nlp(sent)
+        if any(ent.label_ in ["GPE", "LOC", "FAC"] for ent in sent_doc.ents):
+            scene_breaks.append(i)
+    
+    # Add the end
+    if len(sentences) - 1 not in scene_breaks:
+        scene_breaks.append(len(sentences))
+    
+    # If we have too few breaks, fall back to equal-sized chunks
+    if len(scene_breaks) <= 2:
+        scene_breaks = [0]
+        for i in range(sentences_per_scene, len(sentences), sentences_per_scene):
+            scene_breaks.append(i)
+        if len(sentences) not in scene_breaks:
+            scene_breaks.append(len(sentences))
+    
+    # Create scenes based on the breaks
+    scenes = []
+    for i in range(len(scene_breaks) - 1):
+        start = scene_breaks[i]
+        end = scene_breaks[i+1]
+        scene = " ".join(sentences[start:end])
+        scenes.append(scene)
+    
+    # Ensure we don't have too many scenes
+    if len(scenes) > cap:
+        # Combine shortest neighboring scenes
+        while len(scenes) > cap:
+            scene_lengths = [len(s) for s in scenes]
+            shortest_idx = scene_lengths.index(min(scene_lengths))
+            
+            # Combine with shorter neighbor
+            if shortest_idx == 0:
+                scenes[0] = scenes[0] + " " + scenes[1]
+                scenes.pop(1)
+            elif shortest_idx == len(scenes) - 1:
+                scenes[-2] = scenes[-2] + " " + scenes[-1]
+                scenes.pop(-1)
+            else:
+                if len(scenes[shortest_idx-1]) < len(scenes[shortest_idx+1]):
+                    scenes[shortest_idx-1] = scenes[shortest_idx-1] + " " + scenes[shortest_idx]
+                else:
+                    scenes[shortest_idx] = scenes[shortest_idx] + " " + scenes[shortest_idx+1]
+                    scenes.pop(shortest_idx+1)
+                scenes.pop(shortest_idx)
+    
+    return scenes
+
+# ----------  LLM scene extractor (kept as backup) ----------
+def extract_scenes_llm(plot: str, cap: int = MAX_SCENES):
     prompt = (
         "DO NOT include MARKDOWN FORMATTING if this is done the reponse will be invalid, provide the response as a plain JSON array. This is vital and mardown will break the code."
         "You are an expert screenplay analyst with 20 years of experience in scene breakdown. "
         "I need you to split the movie plot into distinct scenes based on these EXACT criteria:\n\n"
-+       "1. Create between 5 and 15 scenes, depending on plot length (never more than 20)\n"
+        "1. Create between 5 and 8 scenes only\n"
         "2. Each scene should represent a distinct narrative unit with a clear purpose\n"
         "3. Break scenes when there is:\n"
         "   - A change in location\n"
@@ -94,24 +167,26 @@ def extract_scenes(plot: str, cap: int = MAX_SCENES):
         "temperature": 0.2,
         "messages": [{"role": "user", "content": prompt}],
     }
-    r = requests.post(API_URL, json=data, headers=headers, timeout=60)
-    r.raise_for_status()
-    raw = r.json()["choices"][0]["message"]["content"].strip()
-    print("RAW LLM OUTPUT:\n", raw)
     try:
+        r = requests.post(API_URL, json=data, headers=headers, timeout=60)
+        r.raise_for_status()
+        raw = r.json()["choices"][0]["message"]["content"].strip()
         scenes = json.loads(raw)
         scenes = [s.strip() for s in scenes if s.strip()]
         return scenes[:cap]
-    except Exception:
-        print("⚠️  Scene JSON parse failed – falling back to paragraph split.")
-        return [p.strip() for p in plot.split("\n") if p.strip()][:cap]
+    except Exception as e:
+        print(f"⚠️ Scene extraction failed: {e}")
+        return extract_scenes_from_sentences(plot, cap)
 
 # ----------  Scene-progression similarity ----------
 def scene_progression_similarity(plot_a: str, plot_b: str) -> float:
-    sc_a = extract_scenes(plot_a)
-    sc_b = extract_scenes(plot_b)
-    emb_a = sbert_model_sequnce.encode([preprocess_text(s) for s in sc_a], convert_to_numpy=True)
-    emb_b = sbert_model_sequnce.encode([preprocess_text(s) for s in sc_b], convert_to_numpy=True)
+    # Use the faster sentence-based extraction instead of LLM
+    sc_a = extract_scenes_from_sentences(plot_a)
+    sc_b = extract_scenes_from_sentences(plot_b)
+    
+    # Continue with embedding and DTW as before
+    emb_a = sbert_model_sequence.encode([preprocess_text(s) for s in sc_a], convert_to_numpy=True)
+    emb_b = sbert_model_sequence.encode([preprocess_text(s) for s in sc_b], convert_to_numpy=True)
     dist, _ = fastdtw(emb_a, emb_b, dist=cosine_distance)
     norm_dist = dist / max(len(emb_a), len(emb_b))  # ~[0,2]
     return 1 / (1 + norm_dist)                      # ∈ (0,1]
@@ -162,7 +237,8 @@ def similarity():
 
     # LLM explanation
     explanation_md = markdown2.markdown(
-        generate_explanation(input_plot, matched_plot, combo_sim)
+        # generate_explanation(input_plot, matched_plot, combo_sim)
+        "jdiw"
     )
 
     # Package for template
