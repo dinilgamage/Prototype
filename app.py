@@ -80,7 +80,9 @@ def extract_scenes_from_sentences(plot: str, cap: int = MAX_SCENES) -> list:
     
     # Look for transition markers
     transition_markers = ["later", "meanwhile", "next day", "that night", 
-                          "the following", "afterwards", "in the morning"]
+                        "the following", "afterwards", "in the morning",
+                        "suddenly", "soon", "years later", "months later", 
+                        "eventually", "finally", "after that", "before long"]
     
     scene_breaks = [0]  # Always start with beginning of text
     
