@@ -116,6 +116,65 @@ def scene_progression_similarity(plot_a: str, plot_b: str) -> float:
     norm_dist = dist / max(len(emb_a), len(emb_b))  # ~[0,2]
     return 1 / (1 + norm_dist)                      # ∈ (0,1]
 
+def scene_progression_similarity_llm(plot_a: str, plot_b: str) -> float:
+    """Use LLM to directly analyze scene progression similarity between plots"""
+    
+    # Truncate long plots if needed
+    max_length = 6000
+    if len(plot_a) > max_length:
+        plot_a = plot_a[:max_length] + "..."
+    if len(plot_b) > max_length:
+        plot_b = plot_b[:max_length] + "..."
+    
+    prompt = (
+        "You are an expert screenplay analyst specializing in narrative structure comparison.\n\n"
+        "Analyze these two movie plots for scene progression similarity. Follow these steps exactly:\n"
+        "1. Break each plot into 5-7 key scenes\n"
+        "2. Compare how the scenes progress in both plots (setup, conflict, resolution, etc.)\n"
+        "3. Identify structural similarities in how the stories unfold\n"
+        "4. Calculate a scene progression similarity score from 0.0 to 1.0 where:\n"
+        "   - 1.0: Nearly identical scene progression\n"
+        "   - 0.7-0.9: Very similar narrative beats in similar order\n"
+        "   - 0.4-0.6: Moderate similarities in structure\n"
+        "   - 0.1-0.3: Few structural similarities\n"
+        "   - 0.0: Completely different narrative structures\n\n"
+        "RESPOND WITH ONLY THE NUMERICAL SCORE, NOTHING ELSE.\n\n"
+        f"PLOT A:\n{plot_a}\n\nPLOT B:\n{plot_b}\n\n"
+        "Scene progression similarity score (0.0-1.0):"
+    )
+    
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
+    data = {
+        "model": MODEL,
+        "temperature": 0.2,
+        "messages": [{"role": "user", "content": prompt}]
+    }
+    
+    try:
+        r = requests.post(API_URL, json=data, headers=headers, timeout=90)
+        r.raise_for_status()
+        response = r.json()["choices"][0]["message"]["content"].strip()
+        
+        # Extract just the number from the response
+        import re
+        score_match = re.search(r'(\d+\.\d+)', response)
+        if score_match:
+            score = float(score_match.group(1))
+            return min(max(score, 0.0), 1.0)  # Ensure value is between 0 and 1
+        else:
+            # Fallback to old method if no number found
+            print("⚠️ No score found in LLM response, falling back to DTW method")
+            return scene_progression_similarity(plot_a, plot_b)
+            
+    except Exception as e:
+        print(f"❌ LLM scene progression analysis failed: {e}")
+        # Fallback to original DTW method
+        return scene_progression_similarity(plot_a, plot_b)
+
 def combined_score(base: float, scene_sim: float) -> float:
     return ALPHA * base + (1 - ALPHA) * scene_sim
 
@@ -157,7 +216,7 @@ def similarity():
     matched_plot = df_cleaned.iloc[idx]["Plot"]
 
     # New scene-progression metric & blend
-    scene_sim = scene_progression_similarity(input_plot, matched_plot)
+    scene_sim = scene_progression_similarity_llm(input_plot, matched_plot)
     combo_sim = combined_score(base_sim, scene_sim)
 
     # LLM explanation
